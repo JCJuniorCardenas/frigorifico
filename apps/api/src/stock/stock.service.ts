@@ -153,6 +153,37 @@ export class StockService {
   }
 
   /**
+   * Merma (WASTE, kg negativos) o ajuste por conteo (ADJUSTMENT, +/-). Se valoriza al costo
+   * promedio vigente y no lo modifica: la mercadería sale o entra a ese mismo costo.
+   * Debe llamarse con el producto ya bloqueado.
+   */
+  async recordAdjustment(
+    tx: Tx,
+    input: {
+      productId: string;
+      type: 'WASTE' | 'ADJUSTMENT';
+      kg: DecimalInput;
+      unitCost: DecimalInput;
+      reason: string;
+      date: Date;
+      userId: string;
+    },
+  ): Promise<string> {
+    const movement = await tx.stockMovement.create({
+      data: {
+        productId: input.productId,
+        type: input.type,
+        kg: input.kg,
+        unitCost: input.unitCost,
+        reason: input.reason,
+        date: input.date,
+        createdById: input.userId,
+      },
+    });
+    return movement.id;
+  }
+
+  /**
    * Recalcula el costo promedio por cada entrada de mercadería, en orden: si un producto aparece
    * dos veces, la segunda entrada pondera sobre la primera. Se llama antes de crear los
    * movimientos, con los productos ya bloqueados.
