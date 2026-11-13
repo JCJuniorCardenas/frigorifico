@@ -9,7 +9,6 @@ coverage/
 storage/
 *.log
 .DS_Store
-# PDFs reales nunca en el repo (solo fixtures anonimizados)
+# PDFs nunca en el repo: tienen datos reales de clientes (incluidos los de fixtures/)
 *.pdf
-!fixtures/**/*.pdf
 *.tsbuildinfo
