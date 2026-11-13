@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { HealthController } from './health/health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { InvoicesModule } from './invoices/invoices.module.js';
+import { StorageModule } from './storage/storage.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
@@ -13,6 +14,7 @@ import { UsersModule } from './users/users.module.js';
     // Límite por defecto; las rutas sensibles (login, upload) usan ThrottlerGuard con su propio @Throttle.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
+    StorageModule,
     AuthModule,
     UsersModule,
     InvoicesModule,

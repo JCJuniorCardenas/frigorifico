@@ -33,21 +33,29 @@ const SAME_LINE_TOLERANCE = 2.5;
  * Solo lee texto: no ejecuta scripts ni evalúa código del PDF.
  */
 export async function extractPdfText(data: Uint8Array, maxPages: number): Promise<PdfText> {
-  const loadingTask = getDocument({
-    // pdfjs transfiere (y vacía) el buffer que recibe: le pasamos una copia.
-    data: data.slice(),
-    enableXfa: false,
-    disableFontFace: true,
-    useSystemFonts: false,
-    stopAtErrors: true,
-    verbosity: VerbosityLevel.ERRORS,
-  });
+  const invalidPdf = () =>
+    new InvoiceParseError('INVALID_PDF', 'El archivo no es un PDF válido o está dañado.');
+  let loadingTask;
+  try {
+    loadingTask = getDocument({
+      // pdfjs transfiere (y vacía) el buffer que recibe, y no acepta un Buffer de Node:
+      // le pasamos una copia como Uint8Array puro.
+      data: Uint8Array.from(data),
+      enableXfa: false,
+      disableFontFace: true,
+      useSystemFonts: false,
+      stopAtErrors: true,
+      verbosity: VerbosityLevel.ERRORS,
+    });
+  } catch {
+    throw invalidPdf();
+  }
   let doc;
   try {
     doc = await loadingTask.promise;
   } catch {
     await loadingTask.destroy();
-    throw new InvoiceParseError('INVALID_PDF', 'El archivo no es un PDF válido o está dañado.');
+    throw invalidPdf();
   }
 
   try {

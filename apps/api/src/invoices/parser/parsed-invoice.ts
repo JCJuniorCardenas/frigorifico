@@ -39,7 +39,8 @@ export type ParseWarningCode =
   | 'ISSUER_CUIT_MISMATCH'
   | 'DUE_DATE_BEFORE_ISSUE'
   | 'COPIES_MISMATCH'
-  | 'UNEXPECTED_PAGES';
+  | 'UNEXPECTED_PAGES'
+  | 'HERD_DUPLICATE';
 
 export interface ParseWarning {
   code: ParseWarningCode;

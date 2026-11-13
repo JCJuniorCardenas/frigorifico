@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { ConfigService } from '@nestjs/config';
+import { buildPdf } from '../../../test/helpers/pdf.js';
 import { InvoiceParserService } from './invoice-parser.service.js';
 import { InvoiceParseError, type InvoiceParseErrorCode } from './parsed-invoice.js';
 
@@ -14,42 +15,6 @@ const hasFixture = existsSync(FIXTURE);
 function service(issuerCuit?: string): InvoiceParserService {
   const config = { get: vi.fn().mockReturnValue(issuerCuit) };
   return new InvoiceParserService(config as unknown as ConfigService);
-}
-
-/** Genera un PDF mínimo válido con una línea de texto por página (o sin texto). */
-function buildPdf(pages: string[][]): Uint8Array {
-  const objects: string[] = [];
-  const add = (body: string) => objects.push(body) - 1 + 1; // número de objeto (1-based)
-
-  add('<< /Type /Catalog /Pages 2 0 R >>');
-  add('PAGES_PLACEHOLDER');
-  const font = add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
-  const pageRefs: number[] = [];
-  for (const lines of pages) {
-    const stream = lines
-      .map((line, i) => `BT /F1 10 Tf 20 ${780 - i * 14} Td (${line}) Tj ET`)
-      .join('\n');
-    const content = add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
-    pageRefs.push(
-      add(
-        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents ${content} 0 R ` +
-          `/Resources << /Font << /F1 ${font} 0 R >> >> >>`,
-      ),
-    );
-  }
-  objects[1] = `<< /Type /Pages /Kids [${pageRefs.map((r) => `${r} 0 R`).join(' ')}] /Count ${pageRefs.length} >>`;
-
-  let out = '%PDF-1.4\n';
-  const offsets: number[] = [];
-  objects.forEach((body, i) => {
-    offsets.push(out.length);
-    out += `${i + 1} 0 obj\n${body}\nendobj\n`;
-  });
-  const xref = out.length;
-  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  out += offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('');
-  out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return new TextEncoder().encode(out);
 }
 
 async function expectParseError(
