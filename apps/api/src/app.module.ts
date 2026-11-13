@@ -4,6 +4,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module.js';
 import { HealthController } from './health/health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { InvoicesModule } from './invoices/invoices.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
@@ -14,6 +15,7 @@ import { UsersModule } from './users/users.module.js';
     PrismaModule,
     AuthModule,
     UsersModule,
+    InvoicesModule,
   ],
   controllers: [HealthController],
 })
