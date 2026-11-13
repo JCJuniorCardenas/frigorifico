@@ -1,0 +1,12 @@
+// Esquema de la base de datos. Los modelos se agregan por fase (ver CLAUDE.md §4 y §13).
+
+generator client {
+  provider             = "prisma-client"
+  output               = "../src/generated/prisma"
+  moduleFormat         = "esm"
+  importFileExtension  = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
