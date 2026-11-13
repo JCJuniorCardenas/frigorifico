@@ -33,4 +33,6 @@ USER node
 # Los PDFs van en /data/storage: montar ahí un volumen persistente (Railway Volume o el de compose).
 EXPOSE 4000
 # Aplica las migraciones pendientes y arranca.
-CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/main.js"]
+# Sin pnpm en runtime: el usuario node no puede escribir en /repo.
+# Si están SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD, crea el primer ADMIN (solo si no hay ninguno).
+CMD ["sh", "-c", "./node_modules/.bin/prisma migrate deploy && if [ -n \"$SEED_ADMIN_EMAIL\" ] && [ -n \"$SEED_ADMIN_PASSWORD\" ]; then ./node_modules/.bin/tsx prisma/seed.ts; fi && node dist/main.js"]

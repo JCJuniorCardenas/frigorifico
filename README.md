@@ -71,27 +71,39 @@ Necesitás un servidor con Docker y un dominio apuntando a su IP.
 ```bash
 cp .env.prod.example .env.prod      # completar: dominio, claves, secretos, ADMIN
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec api pnpm db:seed
 ```
 
 - [Caddy](deploy/Caddyfile) obtiene y renueva el certificado HTTPS (Let's Encrypt) solo.
 - Solo Caddy expone puertos (80/443); la base y la API quedan en la red interna.
 - Los PDFs viven en el volumen `pdfs`; la base, en `pgdata`.
-- Las migraciones se aplican solas al arrancar la API.
+- Al arrancar, la API aplica las migraciones y, si están `SEED_ADMIN_EMAIL` y
+  `SEED_ADMIN_PASSWORD`, crea el primer ADMIN (solo si no hay ninguno). Después de crearlo,
+  conviene borrar `SEED_ADMIN_PASSWORD` del entorno.
 
-### Opción B — Railway (u otra plataforma con Docker)
+### Opción B — Railway (es la que está en uso)
 
-Crear en el mismo proyecto:
+Producción actual: **https://web-production-b2f79abe.up.railway.app** (proyecto `frigorifico`).
 
-1. **PostgreSQL** (servicio administrado).
-2. **api**: desde este repo con `apps/api/Dockerfile` (contexto: raíz). Agregar un **volumen**
-   montado en `/data/storage` (ahí se guardan los PDFs). Variables: `NODE_ENV=production`,
-   `DATABASE_URL` (la de Railway), `WEB_ORIGIN` (URL pública de la web), `ISSUER_CUIT`,
-   `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `SEED_ADMIN_*`. No hace falta dominio público.
-3. **web**: con `apps/web/Dockerfile`, build arg `API_URL` = dirección interna de la API
-   (ej. `http://api.railway.internal:4000`). Generarle el dominio público (HTTPS lo da Railway).
+| Servicio   | Origen                                             | Notas                                                                 |
+| ---------- | -------------------------------------------------- | --------------------------------------------------------------------- |
+| `Postgres` | Base administrada de Railway (Postgres 18)         | Sin acceso público                                                    |
+| `api`      | `RAILWAY_DOCKERFILE_PATH=apps/api/Dockerfile`      | Volumen en `/data/storage` (PDFs), `RAILWAY_RUN_UID=0`, sin dominio   |
+| `web`      | `RAILWAY_DOCKERFILE_PATH=apps/web/Dockerfile`      | `API_URL=http://api.railway.internal:4000`, dominio público con HTTPS |
+| `backup`   | `RAILWAY_DOCKERFILE_PATH=deploy/backup/Dockerfile` | Volumen en `/backups`; backup diario de la base, verificado           |
 
-Después, una vez: ejecutar `pnpm db:seed` en el servicio **api** para crear el ADMIN.
+Variables de `api`: `NODE_ENV=production`, `PORT=4000`, `DATABASE_URL=${{Postgres.DATABASE_URL}}`,
+`WEB_ORIGIN`, `ISSUER_CUIT`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ACCESS_TTL`,
+`JWT_REFRESH_TTL`, `STORAGE_DRIVER=local`, `STORAGE_LOCAL_DIR=/data/storage`. Los secretos y la clave
+del ADMIN están en `.env.railway` (local, no se versiona).
+
+`RAILWAY_RUN_UID=0` hace falta porque los volúmenes de Railway pertenecen a root.
+
+Para desplegar una versión nueva (desde la raíz del repo, con la CLI de Railway logueada):
+
+```bash
+railway up --service api --ci
+railway up --service web --ci
+```
 
 ### Generar secretos
 
@@ -136,3 +148,20 @@ todos los días a las 3:00:
 
 Copiá la carpeta `backups/` fuera del servidor (otro disco, un bucket o tu PC): un backup en el
 mismo servidor no sirve si se pierde el servidor.
+
+### Backups en Railway (opción B, en uso)
+
+El servicio `backup` ([deploy/backup](deploy/backup)) hace un `pg_dump` al arrancar y cada 24 h en
+su volumen `/backups`, conserva los últimos 14 y, **después de cada backup, lo restaura en una
+base temporal del mismo servidor y compara** usuarios, facturas, importes, kg, pagos, historial y
+migraciones. El resultado queda en los logs (`Restauración verificada OK: ...`) y en el
+`manifest.txt` de cada backup (`verificado=ok`):
+
+```bash
+railway logs --service backup
+```
+
+Pendiente: los **PDFs** (volumen de `api`) no los cubre ese servicio. Para copiarlos (y bajar los
+dumps a tu PC) la CLI de Railway pide una clave SSH registrada en la cuenta
+(`railway ssh keys`), o se pueden activar los backups nativos de volúmenes desde el panel de
+Railway (volumen `api-volume` → Backups).
