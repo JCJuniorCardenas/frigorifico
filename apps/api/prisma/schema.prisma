@@ -37,6 +37,8 @@ model User {
   invoiceStatusLogs InvoiceStatusLog[]
   purchases         Purchase[]
   stockMovements    StockMovement[]
+  sales             Sale[]             @relation("SaleCreatedBy")
+  voidedSales       Sale[]             @relation("SaleVoidedBy")
 }
 
 model Invoice {
@@ -124,6 +126,7 @@ model Product {
   updatedAt     DateTime        @updatedAt
   movements     StockMovement[]
   purchaseItems PurchaseItem[]
+  saleItems     SaleItem[]
 }
 
 enum MovementType {
@@ -185,4 +188,49 @@ model StockMovement {
 
   @@index([productId, date])
   @@index([refType, refId])
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  CARD
+  OTHER
+}
+
+// Venta de mostrador. No se edita ni se borra: se anula (genera movimientos SALE_VOID).
+model Sale {
+  id            String        @id @default(uuid())
+  date          DateTime      @db.Date
+  customerName  String?
+  paymentMethod PaymentMethod @default(CASH)
+  total         Decimal       @db.Decimal(14, 2)
+  notes         String?
+  createdById   String
+  createdBy     User          @relation("SaleCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime      @default(now())
+  voided        Boolean       @default(false)
+  voidedAt      DateTime?
+  voidedById    String?
+  voidedBy      User?         @relation("SaleVoidedBy", fields: [voidedById], references: [id])
+  voidReason    String?
+  items         SaleItem[]
+
+  @@index([date])
+  @@index([voided, date])
+}
+
+model SaleItem {
+  id         String  @id @default(uuid())
+  saleId     String
+  line       Int // orden de carga del ítem dentro de la venta (1, 2, ...)
+  sale       Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  kg         Decimal @db.Decimal(12, 3)
+  pricePerKg Decimal @db.Decimal(14, 2)
+  subtotal   Decimal @db.Decimal(14, 2)
+  unitCost   Decimal @db.Decimal(14, 2) // costo promedio al momento de la venta (para el margen)
+
+  @@unique([saleId, line])
+  @@index([productId])
 }

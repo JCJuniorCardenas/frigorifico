@@ -3,7 +3,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import type { MovementType, ProductUnit } from '../generated/prisma/enums.js';
 import { toIsoDate } from '../invoices/invoice.mapper.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Decimal, nextAverageCost, roundMoney, stockValue } from './costing.js';
+import { Decimal, type DecimalInput, nextAverageCost, roundMoney, stockValue } from './costing.js';
 
 type Tx = Prisma.TransactionClient;
 
@@ -40,6 +40,14 @@ export interface MovementRow {
   refId: string | null;
   createdBy: string;
   createdAt: string;
+}
+
+export interface SaleMovementInput {
+  saleId: string;
+  date: Date;
+  userId: string;
+  /** kg positivos (lo vendido); unitCost: costo promedio al momento de la venta. */
+  items: { productId: string; kg: DecimalInput; unitCost: DecimalInput }[];
 }
 
 export interface PurchaseMovementInput {
@@ -80,27 +88,10 @@ export class StockService {
    * producto. Debe llamarse con los productos ya bloqueados.
    */
   async recordPurchase(tx: Tx, input: PurchaseMovementInput): Promise<void> {
-    const productIds = input.items.map((i) => i.productId);
-    const stock = await this.stockOf(tx, productIds);
-    const products = await tx.product.findMany({
-      where: { id: { in: productIds } },
-      select: { id: true, avgCost: true },
-    });
-    const avgCost = new Map(products.map((p) => [p.id, p.avgCost]));
-
-    // Ítems en orden: si un producto aparece dos veces, el segundo pondera sobre el primero.
-    for (const item of input.items) {
-      const stockKg = stock.get(item.productId) ?? new Decimal(0);
-      const newAvg = nextAverageCost({
-        stockKg,
-        avgCost: avgCost.get(item.productId) ?? 0,
-        kgIn: item.kg,
-        costIn: item.costPerKg,
-      });
-      stock.set(item.productId, stockKg.plus(item.kg));
-      avgCost.set(item.productId, newAvg);
-    }
-
+    await this.reweightAverageCost(
+      tx,
+      input.items.map((i) => ({ productId: i.productId, kg: i.kg, cost: i.costPerKg })),
+    );
     await tx.stockMovement.createMany({
       data: input.items.map((item) => ({
         productId: item.productId,
@@ -113,10 +104,86 @@ export class StockService {
         createdById: input.userId,
       })),
     });
+  }
+
+  /**
+   * Movimientos SALE de una venta (kg negativos). Vender no cambia el costo promedio: sale
+   * mercadería al costo promedio vigente, que queda guardado en `unitCost`.
+   */
+  async recordSale(tx: Tx, input: SaleMovementInput): Promise<void> {
+    await tx.stockMovement.createMany({
+      data: input.items.map((item) => ({
+        productId: item.productId,
+        type: 'SALE' as const,
+        kg: new Decimal(item.kg).negated(),
+        unitCost: item.unitCost,
+        refType: 'Sale',
+        refId: input.saleId,
+        date: input.date,
+        createdById: input.userId,
+      })),
+    });
+  }
+
+  /**
+   * Anulación de una venta: movimientos SALE_VOID que devuelven exactamente los kg vendidos.
+   * La mercadería vuelve al costo con que salió; si desde la venta entró mercadería a otro costo,
+   * el promedio se repondera. Ítems sin costo (vendidos sin stock cargado) no lo modifican.
+   */
+  async recordSaleVoid(tx: Tx, input: SaleMovementInput & { reason: string }): Promise<void> {
+    await this.reweightAverageCost(
+      tx,
+      input.items
+        .filter((i) => new Decimal(i.unitCost).gt(0))
+        .map((i) => ({ productId: i.productId, kg: i.kg, cost: i.unitCost })),
+    );
+    await tx.stockMovement.createMany({
+      data: input.items.map((item) => ({
+        productId: item.productId,
+        type: 'SALE_VOID' as const,
+        kg: item.kg,
+        unitCost: item.unitCost,
+        reason: input.reason,
+        refType: 'Sale',
+        refId: input.saleId,
+        date: input.date,
+        createdById: input.userId,
+      })),
+    });
+  }
+
+  /**
+   * Recalcula el costo promedio por cada entrada de mercadería, en orden: si un producto aparece
+   * dos veces, la segunda entrada pondera sobre la primera. Se llama antes de crear los
+   * movimientos, con los productos ya bloqueados.
+   */
+  private async reweightAverageCost(
+    tx: Tx,
+    entries: { productId: string; kg: DecimalInput; cost: DecimalInput }[],
+  ): Promise<void> {
+    if (entries.length === 0) return;
+    const productIds = [...new Set(entries.map((e) => e.productId))];
+    const stock = await this.stockOf(tx, productIds);
+    const products = await tx.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, avgCost: true },
+    });
+    const avgCost = new Map(products.map((p) => [p.id, p.avgCost]));
+    for (const entry of entries) {
+      const stockKg = stock.get(entry.productId) ?? new Decimal(0);
+      avgCost.set(
+        entry.productId,
+        nextAverageCost({
+          stockKg,
+          avgCost: avgCost.get(entry.productId) ?? 0,
+          kgIn: entry.kg,
+          costIn: entry.cost,
+        }),
+      );
+      stock.set(entry.productId, stockKg.plus(entry.kg));
+    }
     for (const [id, cost] of avgCost) {
-      if (productIds.includes(id)) {
-        await tx.product.update({ where: { id }, data: { avgCost: cost } });
-      }
+      await tx.product.update({ where: { id }, data: { avgCost: cost } });
     }
   }
 
