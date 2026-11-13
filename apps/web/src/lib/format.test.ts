@@ -76,3 +76,17 @@ describe('decimalToInput / inputToDecimal', () => {
     },
   );
 });
+
+describe('kilos con 3 decimales (módulo de stock)', () => {
+  it('formatKg acepta la cantidad de decimales', () => {
+    expect(formatKg('12.5', 3)).toBe('12,500 kg');
+    expect(formatKg('1234.567', 3)).toBe('1.234,567 kg');
+  });
+
+  it('inputToDecimal acepta hasta 3 decimales solo si se pide', () => {
+    expect(inputToDecimal('12,345', 3)).toBe('12.345');
+    expect(inputToDecimal('1.234,5', 3)).toBe('1234.5');
+    expect(inputToDecimal('12,345')).toBeNull();
+    expect(inputToDecimal('12,3456', 3)).toBeNull();
+  });
+});

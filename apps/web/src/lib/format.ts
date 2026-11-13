@@ -10,10 +10,19 @@ const moneyFormat = new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 2,
 });
 
-const kgFormat = new Intl.NumberFormat('es-AR', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+const kgFormats = new Map<number, Intl.NumberFormat>();
+
+function kgFormat(decimals: number): Intl.NumberFormat {
+  let format = kgFormats.get(decimals);
+  if (!format) {
+    format = new Intl.NumberFormat('es-AR', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+    kgFormats.set(decimals, format);
+  }
+  return format;
+}
 
 /**
  * Formatea un decimal string para mostrar ("439211.86" -> "$ 439.211,86").
@@ -23,8 +32,9 @@ export function formatMoney(value: string): string {
   return moneyFormat.format(value as unknown as number);
 }
 
-export function formatKg(value: string): string {
-  return `${kgFormat.format(value as unknown as number)} kg`;
+/** Kilos: 2 decimales en las facturas de faena, 3 en el módulo de stock. */
+export function formatKg(value: string, decimals = 2): string {
+  return `${kgFormat(decimals).format(value as unknown as number)} kg`;
 }
 
 /** "2026-11-12" -> "12/11/2026" (sin pasar por Date, para no correr el día por zona horaria). */
@@ -38,17 +48,18 @@ export function decimalToInput(value: string | null): string {
   return value === null ? '' : value.replace('.', ',');
 }
 
-const WITH_DECIMALS = /^(\d{1,3}(?:\.\d{3})+|\d+),(\d{1,2})$/;
+const WITH_DECIMALS = /^(\d{1,3}(?:\.\d{3})+|\d+),(\d+)$/;
 const INTEGER = /^(\d{1,3}(?:\.\d{3})+|\d+)$/;
 
 /**
  * Texto editado por el usuario -> decimal para la API, o null si no es válido.
- * Acepta "439211,86", "439.211,86", "439211" y "1.234". Máximo 2 decimales, no negativo.
+ * Acepta "439211,86", "439.211,86", "439211" y "1.234". No negativo; hasta 2 decimales por
+ * defecto (importes) o los que se indiquen (3 para los kilos del módulo de stock).
  */
-export function inputToDecimal(raw: string): string | null {
+export function inputToDecimal(raw: string, maxDecimals = 2): string | null {
   const value = raw.trim().replace(/^\$\s*/, '');
   const withDecimals = WITH_DECIMALS.exec(value);
-  if (withDecimals) {
+  if (withDecimals && withDecimals[2].length <= maxDecimals) {
     return `${stripZeros(withDecimals[1].replace(/\./g, ''))}.${withDecimals[2]}`;
   }
   const integer = INTEGER.exec(value);

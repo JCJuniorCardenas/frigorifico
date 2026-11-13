@@ -86,3 +86,34 @@ model InvoiceStatusLog {
 
   @@index([invoiceId])
 }
+
+// ── Módulo 2: stock y ventas (ver MODULO-STOCK.md) ──────────────────────────────────────────
+
+enum ProductUnit {
+  KG
+  UNIT
+}
+
+model Supplier {
+  id        String   @id @default(uuid())
+  name      String
+  cuit      String?  @unique // 11 dígitos, sin guiones
+  phone     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+}
+
+model Product {
+  id         String      @id @default(uuid())
+  name       String      @unique
+  category   String? // vacuno, cerdo, pollo, achuras, etc.
+  unit       ProductUnit @default(KG)
+  salePrice  Decimal?    @db.Decimal(14, 2) // precio sugerido por kg (o por unidad)
+  minStockKg Decimal?    @db.Decimal(12, 3) // umbral opcional de alerta de stock bajo
+  active     Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
