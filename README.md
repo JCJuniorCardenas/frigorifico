@@ -51,6 +51,7 @@ los demás usuarios se crean desde la pantalla **Usuarios**.
 | `scripts/backup.sh`                      | Backup de la base y los PDFs en `backups/<fecha-hora>/`         |
 | `scripts/verify-backup.sh [carpeta]`     | Simulacro: restaura un backup en una base temporal y lo compara |
 | `scripts/restore.sh <carpeta> [--force]` | Restaura un backup (ver más abajo)                              |
+| `scripts/backup-railway.sh`              | Copia a la PC la base y los PDFs de producción y los verifica   |
 
 ### Tests del lector de PDFs
 
@@ -161,7 +162,22 @@ migraciones. El resultado queda en los logs (`Restauración verificada OK: ...`)
 railway logs --service backup
 ```
 
-Pendiente: los **PDFs** (volumen de `api`) no los cubre ese servicio. Para copiarlos (y bajar los
-dumps a tu PC) la CLI de Railway pide una clave SSH registrada en la cuenta
-(`railway ssh keys`), o se pueden activar los backups nativos de volúmenes desde el panel de
-Railway (volumen `api-volume` → Backups).
+Ese servicio no ve los **PDFs** (están en el volumen de `api`). Para tener una copia completa
+**fuera de Railway**, correr en la PC (recomendado: una vez por semana):
+
+```bash
+scripts/backup-railway.sh
+```
+
+Baja el último backup verificado de la base y todos los PDFs a `backups/railway-<fecha-hora>/`
+(mismo formato que los backups locales) y hace el simulacro de restauración en un Postgres 18
+temporal en Docker. Necesita la CLI de Railway logueada y la clave SSH registrada en la cuenta
+(`railway ssh keys list`; la de esta PC es `~/.ssh/id_ed25519`).
+
+Para recuperar producción desde una copia (desastre), restaurar el dump en la base de Railway
+con `scripts/restore.sh` (por un túnel: `railway connect Postgres --tunnel-only`) y subir los PDFs
+al volumen con `railway volume files --volume api-volume upload <carpeta> /`.
+
+> **Ojo con Git Bash en Windows:** convierte los valores que empiezan con `/` en rutas de Windows
+> (`/data/storage` → `C:/Program Files/Git/data/storage`). Al pasar rutas a la CLI de Railway,
+> anteponer `MSYS_NO_PATHCONV=1`.

@@ -10,14 +10,35 @@ ROOT="$(repo_root)"
 SRC="${1:-$(ls -1d "$ROOT"/backups/*/ 2>/dev/null | LC_ALL=C sort | tail -1)}"
 SRC="${SRC%/}"
 [ -n "$SRC" ] && [ -f "$SRC/manifest.txt" ] || die "No hay backup para verificar."
-DATABASE_URL="${DATABASE_URL:-$(env_from_api DATABASE_URL)}"
-BASE_URL="$(clean_url "$DATABASE_URL")"
 SCRATCH_DB="frigorifico_restore_check"
-SCRATCH_URL="${BASE_URL%/*}/$SCRATCH_DB"
 SCRATCH_DIR="$(mktemp -d)"
+CONTAINER=""
+
+if [ -n "${VERIFY_PG_IMAGE:-}" ]; then
+  # Simulacro en un Postgres temporal de la versión indicada (ej. postgres:18-alpine para los
+  # backups de Railway), que se borra al terminar.
+  export PG_IMAGE="$VERIFY_PG_IMAGE"
+  PORT="${VERIFY_PG_PORT:-5499}"
+  info "Levantando $VERIFY_PG_IMAGE temporal en el puerto $PORT..."
+  CONTAINER="$(docker run -d --rm -e POSTGRES_PASSWORD=restore-check -p "127.0.0.1:$PORT:5432" "$VERIFY_PG_IMAGE")"
+  for _ in $(seq 1 30); do
+    docker exec "$CONTAINER" pg_isready -U postgres >/dev/null 2>&1 && break
+    sleep 1
+  done
+  sleep 2
+  BASE_URL="postgresql://postgres:restore-check@localhost:$PORT/postgres"
+else
+  DATABASE_URL="${DATABASE_URL:-$(env_from_api DATABASE_URL)}"
+  BASE_URL="$(clean_url "$DATABASE_URL")"
+fi
+SCRATCH_URL="${BASE_URL%/*}/$SCRATCH_DB"
 
 cleanup() {
-  pg_tool psql "$BASE_URL" -q -c "drop database if exists $SCRATCH_DB" >/dev/null 2>&1 || true
+  if [ -n "$CONTAINER" ]; then
+    docker stop "$CONTAINER" >/dev/null 2>&1 || true
+  else
+    pg_tool psql "$BASE_URL" -q -c "drop database if exists $SCRATCH_DB" >/dev/null 2>&1 || true
+  fi
   rm -rf "$SCRATCH_DIR"
 }
 trap cleanup EXIT
