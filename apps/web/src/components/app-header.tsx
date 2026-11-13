@@ -7,6 +7,8 @@ import { useAuth } from './auth-provider';
 const links = [
   { href: '/', label: 'Facturas', adminOnly: false },
   { href: '/cargar', label: 'Cargar', adminOnly: false },
+  { href: '/stock', label: 'Stock', adminOnly: false },
+  { href: '/ingresos', label: 'Ingresos', adminOnly: false },
   { href: '/catalogo', label: 'Catálogo', adminOnly: false },
   { href: '/usuarios', label: 'Usuarios', adminOnly: true },
 ];
