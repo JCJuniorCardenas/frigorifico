@@ -12,3 +12,4 @@ storage/
 # PDFs nunca en el repo: tienen datos reales de clientes (incluidos los de fixtures/)
 *.pdf
 *.tsbuildinfo
+.claude/settings.local.json
