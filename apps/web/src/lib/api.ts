@@ -3,30 +3,43 @@
  * así las cookies httpOnly de sesión viajan solas y nunca se tocan desde JavaScript.
  */
 
+export interface ErrorBody {
+  message?: string | string[];
+  /** Código de error de la API (ej. "DUPLICATE_INVOICE", "NOT_AN_INVOICE"). */
+  code?: string;
+  [key: string]: unknown;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** Cuerpo completo de la respuesta de error, para datos extra (ej. la factura duplicada). */
+    readonly body: ErrorBody = {},
+    /** Mensajes individuales (por ejemplo, uno por campo inválido). */
+    readonly messages: string[] = [message],
   ) {
     super(message);
   }
 }
 
-interface ErrorBody {
-  message?: string | string[];
-}
-
 async function toApiError(res: Response): Promise<ApiError> {
   let message = 'Ocurrió un error inesperado. Probá de nuevo.';
+  let messages: string[] = [];
+  let body: ErrorBody = {};
   try {
-    const body = (await res.json()) as ErrorBody;
-    if (Array.isArray(body.message)) message = body.message.join('. ');
-    else if (body.message) message = body.message;
+    body = (await res.json()) as ErrorBody;
+    if (Array.isArray(body.message)) {
+      messages = body.message;
+      message = body.message.join('. ');
+    } else if (body.message) {
+      message = body.message;
+    }
   } catch {
     // Respuesta sin JSON: se usa el mensaje genérico.
   }
   if (res.status === 429) message = 'Demasiados intentos. Esperá un minuto y probá de nuevo.';
-  return new ApiError(res.status, message);
+  return new ApiError(res.status, message, body, messages.length > 0 ? messages : [message]);
 }
 
 // Estas rutas no se reintentan: un 401 ahí es la respuesta esperada (p. ej. clave incorrecta).
