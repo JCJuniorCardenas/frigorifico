@@ -1,6 +1,5 @@
 import { createHash, randomInt, randomUUID } from 'node:crypto';
-import { mkdtemp, rm, stat } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -88,8 +87,8 @@ describe('Tabla de control, pagos y vencimientos (e2e)', () => {
   }
 
   beforeAll(async () => {
-    storageDir = await mkdtemp(join(tmpdir(), 'frigorifico-e2e-'));
-    process.env.STORAGE_LOCAL_DIR = storageDir;
+    // Carpeta temporal definida en vitest.config.e2e.ts.
+    storageDir = process.env.STORAGE_LOCAL_DIR!;
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
     configureApp(app);

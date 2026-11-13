@@ -1,7 +1,6 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readdir, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -41,8 +40,8 @@ describe('Carga de facturas (e2e)', () => {
       .attach('file', pdf, { filename: 'factura.pdf', contentType: 'application/pdf' });
 
   beforeAll(async () => {
-    storageDir = await mkdtemp(join(tmpdir(), 'frigorifico-e2e-'));
-    process.env.STORAGE_LOCAL_DIR = storageDir;
+    // Carpeta temporal definida en vitest.config.e2e.ts.
+    storageDir = process.env.STORAGE_LOCAL_DIR!;
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();

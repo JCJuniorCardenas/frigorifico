@@ -6,6 +6,7 @@ coverage/
 .env
 .env.*
 !.env.example
+!.env.prod.example
 storage/
 *.log
 .DS_Store
@@ -13,3 +14,4 @@ storage/
 *.pdf
 *.tsbuildinfo
 .claude/settings.local.json
+backups/

@@ -1,0 +1,13 @@
+# HTTPS automático con Let's Encrypt para el dominio de la web.
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	# Los PDFs se suben a /api: permitir hasta 6 MB por pedido.
+	request_body {
+		max_size 6MB
+	}
+	reverse_proxy web:3000
+}
