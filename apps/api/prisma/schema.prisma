@@ -1,12 +1,30 @@
 // Esquema de la base de datos. Los modelos se agregan por fase (ver CLAUDE.md §4 y §13).
 
 generator client {
-  provider             = "prisma-client"
-  output               = "../src/generated/prisma"
-  moduleFormat         = "esm"
-  importFileExtension  = "js"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(USER)
+  active       Boolean  @default(true)
+  // Se incrementa al cerrar sesión, desactivar o resetear la clave: invalida los refresh tokens emitidos.
+  tokenVersion Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

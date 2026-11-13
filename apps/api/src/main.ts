@@ -1,17 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module.js';
+import { configureApp } from './app.setup.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
-  const config = app.get(ConfigService);
-
-  app.enableCors({
-    origin: config.get<string>('WEB_ORIGIN', 'http://localhost:3000'),
-    credentials: true,
-  });
-  app.enableShutdownHooks();
-
-  await app.listen(config.get<number>('PORT', 4000));
+  configureApp(app);
+  await app.listen(app.get(ConfigService).get<number>('PORT', 4000));
 }
 await bootstrap();

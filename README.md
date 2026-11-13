@@ -19,10 +19,16 @@ pnpm install
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
 pnpm db:up
+pnpm --filter api db:migrate
+pnpm --filter api db:seed
 pnpm dev
 ```
 
-- Web: http://localhost:3000 (muestra si la API y la base están conectadas)
+Antes del seed, completá en `apps/api/.env` los secretos `JWT_*` y los datos del primer ADMIN
+(`SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`). El seed solo crea el ADMIN si todavía no hay ninguno;
+después, los demás usuarios se crean desde la pantalla **Usuarios**.
+
+- Web: http://localhost:3000 (pide login; la web reenvía `/api/*` a la API)
 - API: http://localhost:4000/health
 
 ## Scripts

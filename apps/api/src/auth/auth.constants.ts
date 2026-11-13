@@ -1,0 +1,13 @@
+export const ACCESS_COOKIE = 'access_token';
+export const REFRESH_COOKIE = 'refresh_token';
+
+export interface AccessTokenPayload {
+  sub: string;
+  role: string;
+  tv: number;
+}
+
+export interface RefreshTokenPayload {
+  sub: string;
+  tv: number;
+}
