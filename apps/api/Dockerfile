@@ -30,7 +30,7 @@ COPY --from=build /repo/apps/api/prisma.config.ts /repo/apps/api/package.json /r
 WORKDIR /repo/apps/api
 RUN mkdir -p /data/storage && chown -R node:node /data
 USER node
-VOLUME ["/data/storage"]
+# Los PDFs van en /data/storage: montar ahí un volumen persistente (Railway Volume o el de compose).
 EXPOSE 4000
 # Aplica las migraciones pendientes y arranca.
 CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/main.js"]
