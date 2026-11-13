@@ -4,7 +4,6 @@ import {
   ConflictException,
   Injectable,
   Logger,
-  NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Decimal } from 'decimal.js';
@@ -130,12 +129,6 @@ export class InvoicesService {
       }
       throw error;
     }
-  }
-
-  async findOne(id: string): Promise<InvoiceResponse> {
-    const invoice = await this.prisma.invoice.findUnique({ where: { id } });
-    if (!invoice) throw new NotFoundException('Factura no encontrada');
-    return toInvoiceResponse(invoice);
   }
 
   private async parsePdf(data: Uint8Array): Promise<InvoiceParseResult> {

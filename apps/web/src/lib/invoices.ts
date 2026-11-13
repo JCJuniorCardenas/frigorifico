@@ -96,3 +96,108 @@ export function warningField(warning: ParseWarning): InvoiceField | undefined {
   if (warning.field in FIELD_LABELS) return warning.field as InvoiceField;
   return WARNING_FIELD_ALIASES[warning.field];
 }
+
+// ---------- Tabla de control ----------
+
+export type DueState = 'paid' | 'overdue' | 'due_soon' | 'ok';
+
+export interface InvoiceListItem extends Invoice {
+  due: { state: DueState; daysToDue: number | null };
+}
+
+export interface Totals {
+  count: number;
+  kg: string;
+  amount: string;
+}
+
+export interface InvoiceListResponse {
+  items: InvoiceListItem[];
+  page: number;
+  pageSize: number;
+  totals: Totals;
+  today: string;
+}
+
+export type StatusFilter = 'pending' | 'overdue' | 'paid' | 'all';
+export type SortField =
+  | 'clientName'
+  | 'herdNumber'
+  | 'slaughterKg'
+  | 'totalAmount'
+  | 'paymentDueDate'
+  | 'issueDate'
+  | 'voucherNumber'
+  | 'status'
+  | 'paidAt';
+
+export interface InvoiceQuery {
+  q?: string;
+  status: StatusFilter;
+  clientCuit?: string;
+  dateField: 'issue' | 'due';
+  from?: string;
+  to?: string;
+  sort?: SortField;
+  dir?: 'asc' | 'desc';
+  page: number;
+  pageSize: number;
+}
+
+export interface SummaryBucket {
+  count: number;
+  amount: string;
+}
+
+export interface InvoiceSummary {
+  today: string;
+  pending: SummaryBucket;
+  overdue: SummaryBucket;
+  dueThisWeek: SummaryBucket;
+  collectedThisMonth: SummaryBucket;
+}
+
+export interface ClientOption {
+  clientCuit: string;
+  clientName: string;
+}
+
+export interface InvoiceDetail extends InvoiceListItem {
+  uploadedBy: string;
+  paidBy: string | null;
+  statusLogs: {
+    fromStatus: 'PENDING' | 'PAID';
+    toStatus: 'PENDING' | 'PAID';
+    changedBy: string;
+    changedAt: string;
+  }[];
+}
+
+function toQueryString(query: InvoiceQuery): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== '') params.set(key, String(value));
+  }
+  return params.toString();
+}
+
+export const invoicesApi = {
+  list: (query: InvoiceQuery) => apiFetch<InvoiceListResponse>(`/invoices?${toQueryString(query)}`),
+  summary: () => apiFetch<InvoiceSummary>('/invoices/summary'),
+  clients: () => apiFetch<ClientOption[]>('/invoices/clients'),
+  detail: (id: string) => apiFetch<InvoiceDetail>(`/invoices/${id}`),
+  setStatus: (id: string, status: 'PENDING' | 'PAID', paidAt?: string) =>
+    apiFetch<InvoiceListItem>(`/invoices/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, paidAt }),
+    }),
+  setStatusBulk: (ids: string[], status: 'PENDING' | 'PAID', paidAt?: string) =>
+    apiFetch<{ items: InvoiceListItem[]; changed: number }>('/invoices/status/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ ids, status, paidAt }),
+    }),
+  update: (id: string, data: Partial<InvoiceFields> & { needsReview?: boolean }) =>
+    apiFetch<InvoiceListItem>(`/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  remove: (id: string) => apiFetch<void>(`/invoices/${id}`, { method: 'DELETE' }),
+  pdfUrl: (id: string) => `/api/invoices/${id}/pdf`,
+};

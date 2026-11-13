@@ -27,13 +27,16 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "dev": "nest start --watch",
     "db:seed": "prisma db seed",
-    "db:deploy": "prisma migrate deploy"
+    "db:deploy": "prisma migrate deploy",
+    "db:seed-demo": "tsx prisma/seed-demo.ts",
+    "db:clear-demo": "tsx prisma/seed-demo.ts --clear"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.1.1",
     "@nestjs/core": "^12.0.1",
     "@nestjs/jwt": "^12.0.4",
+    "@nestjs/mapped-types": "^12.0.1",
     "@nestjs/platform-express": "^12.0.1",
     "@nestjs/throttler": "^6.7.1",
     "@prisma/adapter-pg": "^7.10.1",

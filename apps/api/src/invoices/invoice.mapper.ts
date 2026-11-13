@@ -1,4 +1,5 @@
 import type { Invoice } from '../generated/prisma/client.js';
+import { type DueInfo, dueInfo } from './due-dates.js';
 import type { ParsedInvoice } from './parser/parsed-invoice.js';
 
 /** Date (fecha calendario en UTC) -> "aaaa-mm-dd". */
@@ -104,4 +105,13 @@ export function toInvoiceResponse(invoice: Invoice): InvoiceResponse {
     createdAt: invoice.createdAt.toISOString(),
     updatedAt: invoice.updatedAt.toISOString(),
   };
+}
+
+/** Fila de la tabla de control: la factura más su estado de vencimiento calculado hoy. */
+export interface InvoiceListItem extends InvoiceResponse {
+  due: DueInfo;
+}
+
+export function toListItem(invoice: Invoice, today: Date): InvoiceListItem {
+  return { ...toInvoiceResponse(invoice), due: dueInfo(invoice, today) };
 }
