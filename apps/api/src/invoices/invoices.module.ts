@@ -15,6 +15,7 @@ import { InvoiceParserService } from './parser/invoice-parser.service.js';
     InvoiceStatusService,
     InvoiceManagementService,
   ],
-  exports: [InvoiceParserService],
+  // InvoiceQueryService: el dashboard del módulo de stock muestra las facturas pendientes.
+  exports: [InvoiceParserService, InvoiceQueryService],
 })
 export class InvoicesModule {}

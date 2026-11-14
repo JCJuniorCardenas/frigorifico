@@ -11,6 +11,7 @@ const links = [
   { href: '/stock', label: 'Stock', adminOnly: false },
   { href: '/ingresos', label: 'Ingresos', adminOnly: false },
   { href: '/mermas', label: 'Mermas', adminOnly: false },
+  { href: '/reportes', label: 'Reportes', adminOnly: false },
   { href: '/catalogo', label: 'Catálogo', adminOnly: false },
   { href: '/usuarios', label: 'Usuarios', adminOnly: true },
 ];
@@ -23,7 +24,7 @@ export function AppHeader() {
     <header className="border-b border-stone-200 bg-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
         <span className="font-semibold">Control de faena</span>
-        <nav className="flex gap-1">
+        <nav className="flex flex-wrap gap-1">
           {links
             .filter((l) => !l.adminOnly || user?.role === 'ADMIN')
             .map((l) => {
