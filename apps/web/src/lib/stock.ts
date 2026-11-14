@@ -49,6 +49,8 @@ export interface PurchaseSummary {
   date: string;
   supplier: { id: string; name: string };
   herdNumber: string | null;
+  /** Factura de faena (módulo 1) vinculada por número de tropa. */
+  invoice: LinkedInvoice | null;
   notes: string | null;
   itemCount: number;
   totalKg: string;
@@ -90,7 +92,22 @@ export interface PurchaseInput {
   supplierId: string;
   herdNumber: string | null;
   notes: string | null;
+  /** Factura de faena de la misma tropa (opcional). */
+  invoiceId?: string;
   items: { productId: string; kg: string; costPerKg: string }[];
+}
+
+/** Factura de faena (módulo 1) vinculada a un ingreso, o candidata por tropa. */
+export interface LinkedInvoice {
+  id: string;
+  salesPoint: string;
+  voucherNumber: string;
+  issueDate: string;
+  clientName: string;
+  herdNumber: string;
+  slaughterKg: string;
+  totalAmount: string;
+  status: 'PENDING' | 'PAID';
 }
 
 function toQuery(query: PurchaseQuery): string {
@@ -108,6 +125,13 @@ export const stockApi = {
     api.get<PurchaseListResponse>(`/purchases?${toQuery(query)}`),
   purchase: (id: string) => api.get<PurchaseDetail>(`/purchases/${id}`),
   createPurchase: (data: PurchaseInput) => api.post<PurchaseDetail>('/purchases', data),
+  invoiceCandidates: (herdNumber: string) =>
+    api.get<LinkedInvoice[]>(
+      `/purchases/invoice-candidates?herdNumber=${encodeURIComponent(herdNumber)}`,
+    ),
+  setPurchaseInvoice: (id: string, invoiceId: string | null) =>
+    api.patch<PurchaseDetail>(`/purchases/${id}/invoice`, { invoiceId }),
+  invoicePdfUrl: (invoiceId: string) => `/api/invoices/${invoiceId}/pdf`,
 };
 
 /** Fecha de hoy en Argentina como "aaaa-mm-dd". */

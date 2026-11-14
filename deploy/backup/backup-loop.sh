@@ -19,6 +19,19 @@ fingerprint() {
     select 'paid=' || count(*) from \"Invoice\" where status = 'PAID';
     select 'status_logs=' || count(*) from \"InvoiceStatusLog\";
     select 'migrations=' || count(*) from \"_prisma_migrations\";"
+  # Módulo de stock (mismo resumen que scripts/lib.sh), si la base ya tiene esas tablas.
+  if [ "$(psql "$1" -At -c "select to_regclass('public.\"Sale\"') is not null")" = "t" ]; then
+    psql "$1" -At -v ON_ERROR_STOP=1 -c "select 'stock=' ||
+      'products:' || (select count(*) from \"Product\") ||
+      ' suppliers:' || (select count(*) from \"Supplier\") ||
+      ' purchases:' || (select count(*) from \"Purchase\") ||
+      ' linked:' || (select count(*) from \"Purchase\" where \"invoiceId\" is not null) ||
+      ' sales:' || (select count(*) from \"Sale\") ||
+      ' voided:' || (select count(*) from \"Sale\" where voided) ||
+      ' movements:' || (select count(*) from \"StockMovement\") ||
+      ' kg:' || (select coalesce(sum(kg), 0) from \"StockMovement\") ||
+      ' sold:' || (select coalesce(sum(total), 0) from \"Sale\" where not voided);"
+  fi
 }
 
 verify_backup() {
@@ -30,7 +43,7 @@ verify_backup() {
     echo "Restauración FALLÓ: pg_restore devolvió error"
     return 1
   fi
-  expected="$(grep -E '^(users|invoices|paid|status_logs|migrations)=' "$dest/manifest.txt")"
+  expected="$(grep -E '^(users|invoices|paid|status_logs|migrations|stock)=' "$dest/manifest.txt")"
   actual="$(fingerprint "$SCRATCH_URL")"
   psql "$URL" -q -c "drop database if exists $SCRATCH_DB"
   if [ "$expected" = "$actual" ]; then

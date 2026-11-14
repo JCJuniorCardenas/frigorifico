@@ -16,11 +16,25 @@ export interface PurchaseItemView {
   totalCost: string;
 }
 
+/** Factura de faena (módulo 1) vinculada a un ingreso, o candidata por número de tropa. */
+export interface LinkedInvoice {
+  id: string;
+  salesPoint: string;
+  voucherNumber: string;
+  issueDate: string;
+  clientName: string;
+  herdNumber: string;
+  slaughterKg: string;
+  totalAmount: string;
+  status: 'PENDING' | 'PAID';
+}
+
 export interface PurchaseSummary {
   id: string;
   date: string;
   supplier: { id: string; name: string };
   herdNumber: string | null;
+  invoice: LinkedInvoice | null;
   notes: string | null;
   itemCount: number;
   totalKg: string;
@@ -41,9 +55,38 @@ export interface PurchaseListResponse {
   totals: { kg: string; cost: string };
 }
 
+const invoiceSelect = {
+  id: true,
+  salesPoint: true,
+  voucherNumber: true,
+  issueDate: true,
+  clientName: true,
+  herdNumber: true,
+  slaughterKg: true,
+  totalAmount: true,
+  status: true,
+} satisfies Prisma.InvoiceSelect;
+
+type InvoiceRow = Prisma.InvoiceGetPayload<{ select: typeof invoiceSelect }>;
+
+function toLinkedInvoice(i: InvoiceRow): LinkedInvoice {
+  return {
+    id: i.id,
+    salesPoint: i.salesPoint,
+    voucherNumber: i.voucherNumber,
+    issueDate: toIsoDate(i.issueDate),
+    clientName: i.clientName,
+    herdNumber: i.herdNumber,
+    slaughterKg: i.slaughterKg.toFixed(2),
+    totalAmount: i.totalAmount.toFixed(2),
+    status: i.status,
+  };
+}
+
 const purchaseInclude = {
   supplier: { select: { id: true, name: true } },
   createdBy: { select: { name: true } },
+  invoice: { select: invoiceSelect },
   items: { include: { product: { select: { name: true } } }, orderBy: { line: 'asc' } },
 } satisfies Prisma.PurchaseInclude;
 
@@ -57,6 +100,7 @@ function toDetail(p: PurchaseWithRelations): PurchaseDetail {
     date: toIsoDate(p.date),
     supplier: p.supplier,
     herdNumber: p.herdNumber,
+    invoice: p.invoice ? toLinkedInvoice(p.invoice) : null,
     notes: p.notes,
     itemCount: p.items.length,
     totalKg: totalKg.toFixed(3),
@@ -113,12 +157,18 @@ export class PurchasesService {
         throw new BadRequestException(`Productos inactivos: ${inactive.join(', ')}`);
       }
 
+      const link = dto.invoiceId
+        ? await this.checkInvoiceLink(tx, dto.invoiceId, dto.herdNumber ?? null)
+        : null;
+
       await this.stock.lockProducts(tx, productIds);
       const purchase = await tx.purchase.create({
         data: {
           date,
           supplierId: supplier.id,
-          herdNumber: dto.herdNumber ?? null,
+          // Sin tropa cargada, se toma la de la factura vinculada.
+          herdNumber: dto.herdNumber ?? link?.herdNumber ?? null,
+          invoiceId: link?.id ?? null,
           notes: dto.notes ?? null,
           createdById: userId,
           items: {
@@ -141,6 +191,61 @@ export class PurchasesService {
       return purchase.id;
     });
     return this.findOne(id);
+  }
+
+  /**
+   * Facturas de faena con ese número de tropa, para sugerir el vínculo al cargar un ingreso
+   * (lo normal es una sola; si hay más, el usuario elige).
+   */
+  async invoiceCandidates(herdNumber: string): Promise<LinkedInvoice[]> {
+    const invoices = await this.prisma.invoice.findMany({
+      where: { herdNumber },
+      select: invoiceSelect,
+      orderBy: { issueDate: 'desc' },
+      take: 10,
+    });
+    return invoices.map(toLinkedInvoice);
+  }
+
+  /**
+   * Vincula (o desvincula, con null) un ingreso ya cargado a una factura de faena. No toca el
+   * stock: es un dato de trazabilidad, por eso se permite aunque los ingresos no se editan.
+   */
+  async setInvoice(id: string, invoiceId: string | null): Promise<PurchaseDetail> {
+    await this.prisma.$transaction(async (tx) => {
+      const purchase = await tx.purchase.findUnique({ where: { id } });
+      if (!purchase) throw new NotFoundException('Ingreso no encontrado');
+      if (invoiceId === null) {
+        await tx.purchase.update({ where: { id }, data: { invoiceId: null } });
+        return;
+      }
+      const invoice = await this.checkInvoiceLink(tx, invoiceId, purchase.herdNumber);
+      await tx.purchase.update({
+        where: { id },
+        data: { invoiceId: invoice.id, herdNumber: purchase.herdNumber ?? invoice.herdNumber },
+      });
+    });
+    return this.findOne(id);
+  }
+
+  /** La factura existe y, si el ingreso tiene tropa, es la misma tropa. */
+  private async checkInvoiceLink(
+    tx: Prisma.TransactionClient,
+    invoiceId: string,
+    herdNumber: string | null,
+  ): Promise<{ id: string; herdNumber: string }> {
+    const invoice = await tx.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { id: true, herdNumber: true, salesPoint: true, voucherNumber: true },
+    });
+    if (!invoice) throw new BadRequestException('La factura de faena no existe');
+    if (herdNumber && invoice.herdNumber !== herdNumber) {
+      throw new BadRequestException(
+        `La factura ${invoice.salesPoint}-${invoice.voucherNumber} es de la tropa ` +
+          `${invoice.herdNumber}, no de la ${herdNumber}`,
+      );
+    }
+    return invoice;
   }
 
   async findOne(id: string): Promise<PurchaseDetail> {

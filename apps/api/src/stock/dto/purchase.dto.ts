@@ -51,12 +51,30 @@ export class CreatePurchaseDto {
   @MaxLength(500, { message: 'Las notas no pueden superar los 500 caracteres' })
   notes?: string | null;
 
+  /** Factura de faena (módulo 1) de la misma tropa, opcional. */
+  @IsOptional()
+  @IsUUID('all', { message: 'Factura inválida' })
+  invoiceId?: string;
+
   @IsArray({ message: 'Cargá al menos un ítem' })
   @ArrayMinSize(1, { message: 'Cargá al menos un ítem' })
   @ArrayMaxSize(100, { message: 'Un ingreso no puede tener más de 100 ítems' })
   @ValidateNested({ each: true })
   @Type(() => PurchaseItemDto)
   items: PurchaseItemDto[];
+}
+
+/** Vincular un ingreso a una factura de faena (o desvincularlo con null). */
+export class LinkInvoiceDto {
+  @IsOptional()
+  @IsUUID('all', { message: 'Factura inválida' })
+  invoiceId: string | null = null;
+}
+
+export class InvoiceCandidatesQueryDto {
+  @Transform(trim)
+  @Matches(HERD, { message: 'El número de tropa debe ser numérico' })
+  herdNumber: string;
 }
 
 export class ListPurchasesQueryDto {

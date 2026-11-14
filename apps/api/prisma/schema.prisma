@@ -69,6 +69,8 @@ model Invoice {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   statusLogs     InvoiceStatusLog[]
+  // Módulo 2 (Fase 12): ingresos de mercadería vinculados por número de tropa.
+  purchases      Purchase[]
 
   @@unique([salesPoint, voucherNumber])
   @@index([herdNumber])
@@ -144,6 +146,9 @@ model Purchase {
   supplierId  String
   supplier    Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   herdNumber  String? // número de tropa, para trazabilidad
+  // Vínculo opcional a la factura de faena (módulo 1) de la misma tropa.
+  invoiceId   String?
+  invoice     Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   notes       String?
   createdById String
   createdBy   User           @relation(fields: [createdById], references: [id])
@@ -153,6 +158,7 @@ model Purchase {
   @@index([date])
   @@index([herdNumber])
   @@index([supplierId])
+  @@index([invoiceId])
 }
 
 model PurchaseItem {

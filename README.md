@@ -9,7 +9,9 @@ Monorepo (pnpm workspaces):
 - `apps/web` — Next.js (App Router) + Tailwind. Puerto 3000. Reenvía `/api/*` a la API, así las
   cookies de sesión quedan en el mismo dominio que la web.
 
-Ver [CLAUDE.md](CLAUDE.md) para el alcance, el modelo de datos y el plan por fases.
+Ver [CLAUDE.md](CLAUDE.md) para el alcance, el modelo de datos y el plan por fases del módulo 1
+(facturas de faena) y [MODULO-STOCK.md](MODULO-STOCK.md) para el módulo 2 (stock y ventas de la
+carnicería).
 
 ## Desarrollo
 
@@ -58,6 +60,35 @@ los demás usuarios se crean desde la pantalla **Usuarios**.
 Los PDFs reales no se versionan (tienen datos de clientes). Ver [fixtures/README.md](fixtures/README.md).
 Sin ellos, los tests que los usan se saltean; el resto usa PDFs sintéticos con datos ficticios.
 
+## Módulo de stock y ventas
+
+Mismo login, misma base y mismo deploy que las facturas. Pantallas (menú superior):
+
+| Pantalla | Ruta                           | Para qué                                                                         |
+| -------- | ------------------------------ | -------------------------------------------------------------------------------- |
+| Catálogo | `/catalogo`                    | Productos (cortes) y proveedores: alta, edición, desactivar                      |
+| Ingresos | `/ingresos`, `/ingresos/nuevo` | Compras de mercadería; carga rápida con teclado; vínculo con la factura de faena |
+| Stock    | `/stock`                       | Kg disponibles, costo promedio, valor y alertas de stock bajo                    |
+| Ventas   | `/ventas`, `/ventas/listado`   | Mostrador (teclado) y listado con anulación                                      |
+| Mermas   | `/mermas`                      | Mermas y ajustes por conteo, con motivo obligatorio                              |
+| Reportes | `/reportes`                    | Dashboard, ventas, ganancia, mermas, compras y stock valorizado, con CSV         |
+
+Reglas principales:
+
+- **El stock es un libro de movimientos** (`StockMovement`): ingresos (+), ventas (−), mermas (−),
+  ajustes (±) y anulaciones de venta (+). No hay un "stock actual" editable: siempre es la suma.
+  Los movimientos no se editan ni se borran; un error se corrige con un ajuste.
+- **Costo promedio ponderado** por producto, recalculado en cada ingreso
+  ([apps/api/src/stock/costing.ts](apps/api/src/stock/costing.ts), aislado para poder cambiar de
+  método). Cada venta guarda el costo vigente de cada ítem, que es la base de la ganancia bruta.
+- Una venta, merma o ajuste que dejaría el stock en negativo **avisa y pide confirmación** (no
+  bloquea). Anular una venta es solo para ADMIN, con motivo, y devuelve exactamente los kg.
+- Productos y proveedores con movimientos no se pueden borrar (lo impide la base): se desactivan.
+- Un ingreso con número de tropa sugiere la **factura de faena** de esa tropa; vinculado, el
+  listado y el detalle muestran un acceso directo al PDF. Se puede vincular o desvincular después.
+- Reportes: período por defecto el mes actual; las ventas anuladas no cuentan; exportación a CSV
+  pensada para Excel en español (`;`, coma decimal, `dd/mm/aaaa`).
+
 ## Producción
 
 La API valida su configuración al arrancar y no levanta si falta algo crítico (por ejemplo,
@@ -104,7 +135,11 @@ Para desplegar una versión nueva (desde la raíz del repo, con la CLI de Railwa
 ```bash
 railway up --service api --ci
 railway up --service web --ci
+railway up --service backup --ci   # solo si cambió deploy/backup/
 ```
+
+Las migraciones se aplican solas al arrancar la API (`prisma migrate deploy`); todas las del módulo
+de stock son aditivas (tablas o columnas nuevas), así que no tocan los datos existentes.
 
 ### Generar secretos
 
@@ -114,7 +149,10 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 
 ## Backups
 
-Un backup = la base (`pg_dump`) + todos los PDFs + un manifiesto con conteos y hashes. Los
+Un backup = la base (`pg_dump`) + todos los PDFs + un manifiesto con conteos y hashes. El
+manifiesto incluye una línea `stock=` con el resumen del módulo de stock (productos, ingresos,
+ventas, movimientos, kg y total vendido); los backups anteriores a ese módulo no la tienen y se
+siguen verificando igual. Los
 scripts usan `pg_dump`/`psql` del sistema o, si no están, los corren dentro de Docker.
 
 ```bash

@@ -5,6 +5,7 @@ import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 
 import { Errors, Field, errorMessages, inputClass } from '@/components/catalog/catalog-ui';
 import { type Product, type Supplier, catalogApi } from '@/lib/catalog';
 import { formatKg, formatMoney, inputToDecimal } from '@/lib/format';
+import { InvoiceSuggestion, voucherOf } from './invoice-link';
 import {
   type PurchaseDetail,
   lineTotal,
@@ -39,6 +40,7 @@ export function PurchaseForm() {
   const [supplierId, setSupplierId] = useState('');
   const [herdNumber, setHerdNumber] = useState('');
   const [notes, setNotes] = useState('');
+  const [invoiceId, setInvoiceId] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([emptyRow()]);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -144,6 +146,7 @@ export function PurchaseForm() {
         supplierId,
         herdNumber: herdNumber.trim() || null,
         notes: notes.trim() || null,
+        invoiceId: invoiceId ?? undefined,
         items: filled.map((p) => ({
           productId: p.row.productId,
           kg: p.kg as string,
@@ -189,7 +192,9 @@ export function PurchaseForm() {
       {saved && (
         <p role="status" className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">
           Ingreso guardado: {saved.supplier.name}, {saved.itemCount} ítem(s),{' '}
-          {formatKg(saved.totalKg, 3)}, {formatMoney(saved.totalCost)}. Podés cargar el siguiente.
+          {formatKg(saved.totalKg, 3)}, {formatMoney(saved.totalCost)}
+          {saved.invoice && <>, vinculado a la factura {voucherOf(saved.invoice)}</>}. Podés cargar
+          el siguiente.
         </p>
       )}
 
@@ -247,6 +252,7 @@ export function PurchaseForm() {
             />
           </Field>
         </div>
+        <InvoiceSuggestion herdNumber={herdNumber} selectedId={invoiceId} onChange={setInvoiceId} />
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">

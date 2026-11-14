@@ -57,4 +57,21 @@ db_fingerprint() {
     select 'paid=' || count(*) from \"Invoice\" where status = 'PAID';
     select 'status_logs=' || count(*) from \"InvoiceStatusLog\";
     select 'migrations=' || count(*) from \"_prisma_migrations\";"
+  # Módulo de stock (si la base ya lo tiene; los backups anteriores no traen estas tablas).
+  if [ "$(pg_tool psql "$url" -At -c "select to_regclass('public.\"Sale\"') is not null")" = "t" ]; then
+    pg_tool psql "$url" -At -v ON_ERROR_STOP=1 -c "$STOCK_FINGERPRINT_SQL"
+  fi
 }
+
+# Resumen del módulo de stock: catálogo, ingresos, ventas, movimientos y vínculos con facturas.
+# shellcheck disable=SC2034
+STOCK_FINGERPRINT_SQL="select 'stock=' ||
+  'products:' || (select count(*) from \"Product\") ||
+  ' suppliers:' || (select count(*) from \"Supplier\") ||
+  ' purchases:' || (select count(*) from \"Purchase\") ||
+  ' linked:' || (select count(*) from \"Purchase\" where \"invoiceId\" is not null) ||
+  ' sales:' || (select count(*) from \"Sale\") ||
+  ' voided:' || (select count(*) from \"Sale\" where voided) ||
+  ' movements:' || (select count(*) from \"StockMovement\") ||
+  ' kg:' || (select coalesce(sum(kg), 0) from \"StockMovement\") ||
+  ' sold:' || (select coalesce(sum(total), 0) from \"Sale\" where not voided);"

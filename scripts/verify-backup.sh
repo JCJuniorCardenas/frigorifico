@@ -48,7 +48,7 @@ pg_tool psql "$BASE_URL" -q -v ON_ERROR_STOP=1 -c "drop database if exists $SCRA
 TARGET_DATABASE_URL="$SCRATCH_URL" TARGET_STORAGE_DIR="$SCRATCH_DIR" "$ROOT/scripts/restore.sh" "$SRC" > "$SCRATCH_DIR.log" 2>&1 \
   || { cat "$SCRATCH_DIR.log"; die "La restauración falló."; }
 
-expected="$(grep -E '^(users|invoices|paid|status_logs|migrations)=' "$SRC/manifest.txt")"
+expected="$(grep -E '^(users|invoices|paid|status_logs|migrations|stock)=' "$SRC/manifest.txt")"
 actual="$(db_fingerprint "$SCRATCH_URL")"
 if [ "$expected" != "$actual" ]; then
   echo "Esperado:"; echo "$expected"; echo "Restaurado:"; echo "$actual"

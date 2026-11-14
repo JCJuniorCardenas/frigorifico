@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Errors } from '@/components/catalog/catalog-ui';
 import { Modal } from '@/components/ui/modal';
+import { InvoiceCard, InvoicePdfLink, useInvoiceCandidates, voucherOf } from './invoice-link';
 import { type Supplier, catalogApi } from '@/lib/catalog';
 import { formatIsoDate, formatKg, formatMoney } from '@/lib/format';
 import {
@@ -161,7 +162,12 @@ export function PurchasesView() {
               >
                 <td className="px-4 py-2">{formatIsoDate(p.date)}</td>
                 <td className="px-4 py-2 font-medium">{p.supplier.name}</td>
-                <td className="px-4 py-2 tabular-nums">{p.herdNumber ?? '—'}</td>
+                <td className="px-4 py-2 tabular-nums">
+                  <span className="flex flex-wrap items-center gap-2">
+                    {p.herdNumber ?? '—'}
+                    {p.invoice && <InvoicePdfLink invoice={p.invoice} label="Factura" />}
+                  </span>
+                </td>
                 <td className="px-4 py-2 text-right tabular-nums">{p.itemCount}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{formatKg(p.totalKg, 3)}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{formatMoney(p.totalCost)}</td>
@@ -204,14 +210,44 @@ export function PurchasesView() {
         </div>
       )}
 
-      {detailId && <PurchaseDialog id={detailId} onClose={() => setDetailId(null)} />}
+      {detailId && (
+        <PurchaseDialog
+          id={detailId}
+          onClose={() => setDetailId(null)}
+          // Al vincular/desvincular, refresca la fila del listado.
+          onChanged={() => setFilters((f) => ({ ...f }))}
+        />
+      )}
     </section>
   );
 }
 
-function PurchaseDialog({ id, onClose }: { id: string; onClose: () => void }) {
+function PurchaseDialog({
+  id,
+  onClose,
+  onChanged,
+}: {
+  id: string;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
   const [purchase, setPurchase] = useState<PurchaseDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [linking, setLinking] = useState(false);
+
+  async function setInvoice(invoiceId: string | null) {
+    setLinking(true);
+    setLinkError(null);
+    try {
+      setPurchase(await stockApi.setPurchaseInvoice(id, invoiceId));
+      onChanged();
+    } catch (e) {
+      setLinkError(e instanceof Error ? e.message : 'No se pudo actualizar el vínculo');
+    } finally {
+      setLinking(false);
+    }
+  }
 
   useEffect(() => {
     stockApi
@@ -232,6 +268,22 @@ function PurchaseDialog({ id, onClose }: { id: string; onClose: () => void }) {
             <Item label="Tropa" value={purchase.herdNumber ?? '—'} />
             <Item label="Cargado por" value={purchase.createdBy} />
           </dl>
+          {purchase.invoice ? (
+            <InvoiceCard
+              invoice={purchase.invoice}
+              busy={linking}
+              onUnlink={() => void setInvoice(null)}
+            />
+          ) : (
+            purchase.herdNumber && (
+              <LinkCandidates
+                herdNumber={purchase.herdNumber}
+                busy={linking}
+                onLink={(invoiceId) => void setInvoice(invoiceId)}
+              />
+            )
+          )}
+          {linkError && <Errors messages={[linkError]} />}
           {purchase.notes && <p className="text-stone-600">Notas: {purchase.notes}</p>}
           <table className="w-full text-left">
             <thead className="border-b border-stone-200 text-stone-600">
@@ -277,6 +329,47 @@ function Item({ label, value }: { label: string; value: string }) {
     <div>
       <dt className="text-xs text-stone-500">{label}</dt>
       <dd className="font-medium">{value}</dd>
+    </div>
+  );
+}
+
+/** Ingreso con tropa y sin factura vinculada: busca la de esa tropa para vincularla. */
+function LinkCandidates({
+  herdNumber,
+  busy,
+  onLink,
+}: {
+  herdNumber: string;
+  busy: boolean;
+  onLink: (invoiceId: string) => void;
+}) {
+  const candidates = useInvoiceCandidates(herdNumber);
+  if (candidates === null) return null;
+  if (candidates.length === 0) {
+    return (
+      <p className="text-xs text-stone-500">
+        Todavía no hay una factura de faena cargada con la tropa {herdNumber}.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-1 rounded-md border border-sky-200 bg-sky-50 px-3 py-2">
+      {candidates.map((c) => (
+        <div key={c.id} className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            Factura de faena <strong>{voucherOf(c)}</strong> ({c.clientName}) de la tropa{' '}
+            {herdNumber}
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onLink(c.id)}
+            className="rounded-md bg-stone-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-stone-800 disabled:opacity-60"
+          >
+            Vincular
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
